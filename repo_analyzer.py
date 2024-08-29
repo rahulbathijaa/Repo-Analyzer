@@ -1,12 +1,11 @@
 import requests
-import json
-import outlines
-from outlines.samplers import greedy
+from typing import Dict
+import transformers
 
-def fetch_repo_data(username, github_token):
+def fetch_repo_data(username, github_token) -> Dict:
     headers = {"Authorization": f"token {github_token}"}
     repos_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=1"
-    
+
     response = requests.get(repos_url, headers=headers)
     repos_data = response.json()
 
@@ -15,41 +14,67 @@ def fetch_repo_data(username, github_token):
         "repo_name": repo['name'],
         "stars": repo.get("stargazers_count", 0),
         "forks": repo.get("forks_count", 0),
-        "open_issues": repo.get("open_issues_count", 0)
+        "open_issues": repo.get("open_issues_count", 0),
+        "watchers": repo.get("watchers_count", 0),
+        "issues_closed": repo.get("closed_issues_count", 0)  # Assuming this field is available
     }
 
-@outlines.prompt
-def repo_scoring_prompt(repo_name: str, stars: int, forks: int, open_issues: int) -> str:
-    """Analyze the following GitHub repository:
+def calculate_score(stars: int, forks: int, open_issues: int, watchers: int, issues_closed: int) -> float:
+    # More complex scoring logic using weighted averages
+    score = (stars * 0.4) + (forks * 0.3) + (watchers * 0.2) - (open_issues * 0.1) + (issues_closed * 0.2)
+    return round(score, 2)
 
-    Repository Name: {{ repo_name }}
-    Stars: {{ stars }}
-    Forks: {{ forks }}
-    Open Issues: {{ open_issues }}
+def determine_category(score: float, model, tokenizer) -> str:
+    """Use the LLaMA model to determine the category based on the score."""
+    # Generate the prompt for the model
+    prompt = f"Based on the score {score}, categorize the repository as one of the following: 'needs improvement', 'good', 'great', 'amazing'.\nCategory:"
+    
+    # Tokenize and generate the model output
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    outputs = model.generate(**inputs, max_new_tokens=10)
+    category = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
-    Based on these metrics, provide a score for this repository:
-    - "needs improvement": for repositories with low engagement or high number of open issues
-    - "good": for repositories with moderate engagement and a balanced number of open issues
-    - "great": for repositories with high engagement and well-managed issues
-    - "amazing": for exceptional repositories with very high engagement and efficiently managed issues
+    # Extract the first valid category from the output
+    valid_categories = ["needs improvement", "good", "great", "amazing"]
+    for valid_category in valid_categories:
+        if valid_category in category.lower():
+            return valid_category.capitalize()
 
-    Score (one of: "needs improvement", "good", "great", "amazing"):"""
+    return "Unknown"
 
-def analyze_repo(username: str, github_token: str, model, tokenizer) -> str:
+def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
     # Fetch repo data
     repo_data = fetch_repo_data(username, github_token)
 
-    # Generate prompt with repo details
-    prompt = repo_scoring_prompt(
-        repo_name=repo_data['repo_name'],
-        stars=repo_data['stars'],
-        forks=repo_data['forks'],
-        open_issues=repo_data['open_issues']
+    # Calculate numerical score based on multiple factors
+    score = calculate_score(
+        stars=repo_data["stars"],
+        forks=repo_data["forks"],
+        open_issues=repo_data["open_issues"],
+        watchers=repo_data["watchers"],
+        issues_closed=repo_data.get("issues_closed", 0)
     )
 
-    # Tokenize the prompt
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)  # Ensure inputs are on the same device as the model
-    outputs = model.generate(**inputs, max_new_tokens=50)
-    score = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+    # Determine category using the LLaMA model
+    category = determine_category(score, model, tokenizer)
 
-    return score
+    # Construct the structured JSON output manually
+    repo_json = {
+        "repo_name": repo_data["repo_name"],
+        "score": score,
+        "category": category,
+        "details": {
+            "stars": repo_data["stars"],
+            "forks": repo_data["forks"],
+            "open_issues": repo_data["open_issues"],
+            "watchers": repo_data["watchers"],
+            "issues_closed": repo_data.get("issues_closed", 0)
+        }
+    }
+
+    # Validate JSON structure before returning
+    assert "repo_name" in repo_json, "Missing 'repo_name' in output"
+    assert "score" in repo_json, "Missing 'score' in output"
+    assert "category" in repo_json, "Missing 'category' in output"
+
+    return repo_json
