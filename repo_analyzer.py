@@ -1,88 +1,55 @@
 import requests
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import outlines
+from outlines.samplers import greedy
 
-def analyze_repo_health(username, repo_name, github_token):
+def fetch_repo_data(username, github_token):
     headers = {"Authorization": f"token {github_token}"}
-    repo_url = f"https://api.github.com/repos/{username}/{repo_name}"
+    repos_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=1"
     
-    # Fetch repo info
-    repo_response = requests.get(repo_url, headers=headers)
-    if repo_response.status_code != 200:
-        raise Exception(f"GitHub API request failed with status code {repo_response.status_code}")
-    repo_data = repo_response.json()
+    response = requests.get(repos_url, headers=headers)
+    repos_data = response.json()
 
-    # Extract relevant data
-    stars = repo_data['stargazers_count']
-    forks = repo_data['forks_count']
-    open_issues = repo_data['open_issues_count']
-    
-    # Fetch pull requests
-    pulls_url = f"{repo_url}/pulls?state=all"
-    pulls_response = requests.get(pulls_url, headers=headers)
-    if pulls_response.status_code != 200:
-        raise Exception(f"GitHub API request failed with status code {pulls_response.status_code}")
-    pulls_data = pulls_response.json()
-    pull_requests = len(pulls_data)
-
+    repo = repos_data[0]
     return {
-        "repo_name": repo_name,
-        "stars": stars,
-        "forks": forks,
-        "open_issues": open_issues,
-        "pull_requests": pull_requests
+        "repo_name": repo['name'],
+        "stars": repo.get("stargazers_count", 0),
+        "forks": repo.get("forks_count", 0),
+        "open_issues": repo.get("open_issues_count", 0)
     }
 
-def generate_collaboration_score(repo_analysis, model, tokenizer):
-    prompt = f"Analyze the collaboration patterns in {repo_analysis['repo_name']} and provide a collaboration score between 0 and 100."
-    
-    # Pass both the model and tokenizer to outlines' generate.choice
-    generator = outlines.generate.choice(model, tokenizer, choices=[str(i) for i in range(0, 101)])
+@outlines.prompt
+def repo_scoring_prompt(repo_name: str, stars: int, forks: int, open_issues: int) -> str:
+    """Analyze the following GitHub repository:
 
-    # Generate the output using the prompt
-    return generator(prompt)
+    Repository Name: {{ repo_name }}
+    Stars: {{ stars }}
+    Forks: {{ forks }}
+    Open Issues: {{ open_issues }}
 
-def identify_tech_trends(repo_analysis, model, tokenizer):
-    prompt = f"Identify any significant technology shifts or trends in {repo_analysis['repo_name']}."
-    
-    # Pass both the model and tokenizer to outlines' generate.json
-    return outlines.generate.json(model, tokenizer)(prompt)
+    Based on these metrics, provide a score for this repository:
+    - "needs improvement": for repositories with low engagement or high number of open issues
+    - "good": for repositories with moderate engagement and a balanced number of open issues
+    - "great": for repositories with high engagement and well-managed issues
+    - "amazing": for exceptional repositories with very high engagement and efficiently managed issues
 
-# Analyze only one repo
-def analyze_single_repo(username, github_token, model, tokenizer):
-    headers = {"Authorization": f"token {github_token}"}
-    repos_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=1"  # Fetch only 1 repo
-    
-    repos_response = requests.get(repos_url, headers=headers)
-    if repos_response.status_code != 200:
-        raise Exception(f"GitHub API request failed with status code {repos_response.status_code}")
-    repos_data = repos_response.json()
+    Score (one of: "needs improvement", "good", "great", "amazing"):"""
 
-    repo_analyses = []
-    for repo in repos_data:
-        repo_name = repo['name']
-        repo_analysis = analyze_repo_health(username, repo_name, github_token)
+def analyze_repo(username: str, github_token: str, model, tokenizer) -> str:
+    # Fetch repo data
+    repo_data = fetch_repo_data(username, github_token)
 
-        # Apply dynamic repo analysis and structured output
-        repo_analysis['collaboration_score'] = generate_collaboration_score(repo_analysis, model, tokenizer)
-        repo_analysis['technology_trend'] = identify_tech_trends(repo_analysis, model, tokenizer)
+    # Generate prompt with repo details
+    prompt = repo_scoring_prompt(
+        repo_name=repo_data['repo_name'],
+        stars=repo_data['stars'],
+        forks=repo_data['forks'],
+        open_issues=repo_data['open_issues']
+    )
 
-        repo_analyses.append(repo_analysis)
+    # Tokenize the prompt
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)  # Ensure inputs are on the same device as the model
+    outputs = model.generate(**inputs, max_new_tokens=50)
+    score = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
-    return repo_analyses
-
-# Updated function to generate structured output with tokenizer
-def generate_structured_output(username, github_token, model, tokenizer):
-    # Fetch and analyze a single repo
-    repo_analyses = analyze_single_repo(username, github_token, model, tokenizer)
-    
-    for repo_analysis in repo_analyses:
-        repo_analysis['code_quality_score'] = generate_code_quality_score(repo_analysis, model, tokenizer)
-    
-    structured_output = {
-        "username": username,
-        "repo_analyses": repo_analyses
-    }
-    return json.dumps(structured_output, indent=4)
-
+    return score
