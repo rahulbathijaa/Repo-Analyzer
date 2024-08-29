@@ -1,5 +1,7 @@
 import transformers
 import torch
+from outlines.text import PromptTemplate
+from outlines.text import Caching
 
 async def generate_summary(profile_data: dict, model, tokenizer):
     # Initialize the text generation pipeline
@@ -10,22 +12,38 @@ async def generate_summary(profile_data: dict, model, tokenizer):
         torch_dtype=torch.float16,
         device_map="auto"  # Ensure the model runs on GPU if available
     )
-
-    # Construct the prompt using profile data
-    prompt = f"""
-    Generate a detailed and engaging summary for the following GitHub profile:
-    Username: {profile_data['username']}
-    Years on GitHub: {profile_data['years_on_github']}
-    Public Repos: {profile_data['public_repos']}
-    Followers: {profile_data['followers']}
-    Following: {profile_data['following']}
-    Bio: {profile_data['bio']}
-
-    The summary should highlight the user's expertise, contributions, growth, and notable projects. It should be written in a narrative style similar to the following example:
-
-    Rahul has been an active contributor to GitHub since 2018, where his expertise in Python, JavaScript, and TypeScript shines through. His contributions in the field of AI and serverless computing have been instrumental in advancing real-time AI solutions. With 543 commits in the last three years, his consistency and growth are evident. Notably, Rahul's collaborations with 12 other developers underscore his commitment to teamwork and innovation, particularly in developing robust chatbot solutions and cutting-edge AI tools. Based on his recent contributions, it's clear that Rahul is at the forefront of serverless AI technologies, pushing boundaries in both functionality and scalability.
-    """
-
+    
+    # Define a more dynamic prompt template using Outlines
+    template = PromptTemplate("""
+    {{ username }} has been a GitHub member for {{ years_on_github }} years.
+    They have {{ public_repos }} public repositories and are followed by {{ followers }} people.
+    Throughout their journey, they have followed {{ following }} developers.
+    Their bio reads: {{ bio }}.
+    
+    This user is particularly known for their contributions in {{ expertise_area }}.
+    Some of their most notable work includes {{ notable_projects }}. Their career milestones include {{ milestones }}.
+    """)
+    
+    # Populate the template with user profile data
+    prompt = template.render(
+        username=profile_data['username'],
+        years_on_github=profile_data['years_on_github'],
+        public_repos=profile_data['public_repos'],
+        followers=profile_data['followers'],
+        following=profile_data['following'],
+        bio=profile_data['bio'],
+        expertise_area="AI and serverless computing",  # Example: You can make this dynamic based on profile data
+        notable_projects="developing robust chatbot solutions",  # Dynamic example
+        milestones="pushing boundaries in both functionality and scalability"  # Dynamic example
+    )
+    
+    # Caching setup to avoid redundant generations
+    cache = Caching(cache_path=".cache")  # Adjust the path as needed
+    cache_key = f"summary_{profile_data['username']}"
+    
+    if cache.exists(cache_key):
+        return cache.get(cache_key)
+    
     # Generate the output with more deterministic parameters
     outputs = pipeline(
         prompt,
@@ -42,8 +60,7 @@ async def generate_summary(profile_data: dict, model, tokenizer):
     # Post-process the generated text to ensure it is a single paragraph
     generated_text = generated_text.replace("\n", " ").strip()
 
-    # Remove the prompt from the generated text
-    if "Generate a detailed and engaging summary for the following GitHub profile:" in generated_text:
-        generated_text = generated_text.split("Generate a detailed and engaging summary for the following GitHub profile:")[1].strip()
+    # Cache the generated text for future use
+    cache.set(cache_key, generated_text)
 
     return generated_text
