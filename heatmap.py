@@ -3,9 +3,10 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field, ValidationError
 from datetime import datetime
 from collections import defaultdict
-import outlines
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
+import re
 import pandas as pd
 
 # Define a Pydantic model to enforce type constraints on the fetched data
@@ -33,30 +34,36 @@ def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str,
 
     contributions = []
 
-    for repo in repos_data[:12]:  # Limit to the first 3 repositories
+    for repo in repos_data[:3]:  # Limit to the first 3 repositories
         repo_name = repo['name']
+        language = repo.get('language', 'Unknown')
         commits_url = repo['commits_url'].replace('{/sha}', '')
 
-        commits_response = requests.get(commits_url, headers=headers)
+        # Fetch only the latest 5 commits to reduce API usage
+        commits_response = requests.get(f"{commits_url}?per_page=5", headers=headers)
         commits_data = commits_response.json()
 
         for commit in commits_data:
-            commit_date = commit['commit']['author']['date']
-            commit_size = commit.get('stats', {}).get('total', 0)
-            language = repo.get('language', 'Unknown')
-            contribution_type = "commit"
+            print(json.dumps(commit, indent=2))  # Debugging: Print the full commit JSON
+
+            commit_info = commit.get('commit', {})
+            author_info = commit_info.get('author', {})
+            commit_date = author_info.get('date')
+
+            if not commit_date:
+                print(f"Commit date missing for a commit in {repo_name}, skipping...")
+                continue
 
             try:
                 contribution = ContributionData(
                     repo_name=repo_name,
                     date=datetime.strptime(commit_date, "%Y-%m-%dT%H:%M:%SZ"),
-                    commit_size=commit_size,
                     language=language,
-                    contribution_type=contribution_type
+                    contribution_type="commit"
                 )
                 contributions.append(contribution.dict())
-            except ValidationError as e:
-                print(f"Validation error for commit {commit['sha']}: {e}")
+            except (ValidationError, KeyError) as e:
+                print(f"Error processing commit in {repo_name}: {e}")
 
     return contributions
 
@@ -64,22 +71,21 @@ def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str,
 def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]:
     structured_data = defaultdict(lambda: {
         "total_commits": 0,
-        "total_commit_size": 0,
         "languages": defaultdict(int),
         "contribution_types": defaultdict(int)
     })
 
     for contribution in contributions:
         date = contribution["date"].strftime("%Y-%m-%d")
-        commit_size = contribution["commit_size"]
         language = contribution["language"]
         contribution_type = contribution["contribution_type"]
 
+        # Increment the total number of commits on that date
         structured_data[date]["total_commits"] += 1
-        structured_data[date]["total_commit_size"] += commit_size
         structured_data[date]["languages"][language] += 1
         structured_data[date]["contribution_types"][contribution_type] += 1
 
+    # Convert defaultdicts to regular dictionaries
     structured_data = {date: dict(data) for date, data in structured_data.items()}
 
     try:
@@ -90,35 +96,48 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
 
     return validated_data
 
+
 # Step 3: Use Chain of Thought for generating insights and visual attributes
 def generate_visual_attributes(contributions: List[Dict[str, Any]]) -> Dict[str, Any]:
     insights = {}
 
-    # Example Chain of Thought: Analyzing trends over time
     for date, data in contributions.items():
         # Analyze language trends
         most_used_language = max(data["languages"], key=data["languages"].get)
-        insights[date] = {
-            "most_used_language": most_used_language,
-            "language_trend": f"On {date}, the most used language was {most_used_language}."
-        }
-
+        
         # Analyze commit sizes
-        large_commits = [commit for commit in data["total_commit_size"] if commit > 100]
-        if large_commits:
-            insights[date]["commit_trend"] = f"Significant commit activity on {date} with {len(large_commits)} large commits."
+        large_commits = [commit for commit in data["total_commit_size"] if commit > 25]
 
         # Analyze contribution types
-        if "pull_request" in data["contribution_types"]:
-            insights[date]["contribution_type_trend"] = f"Pull requests were significant on {date}."
+        significant_prs = "pull_request" in data["contribution_types"]
+
+        # Store insights in a structured format
+        insights[date] = {
+            "most_used_language": most_used_language,
+            "large_commits_count": len(large_commits),
+            "significant_prs": significant_prs,
+            "total_commits": data["total_commits"],
+            "total_commit_size": data["total_commit_size"],
+            "languages": data["languages"],
+            "contribution_types": data["contribution_types"],
+        }
 
     return insights
+
 
 # Step 4: Generate heatmap JSON using insights
 def generate_heatmap_json(structured_data: Dict[str, Any], insights: Dict[str, Any]) -> Dict[str, Any]:
     heatmap_json = {}
 
+    # Define a regex pattern for date validation
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
     for date, data in structured_data.items():
+        # Validate date format using the regex pattern
+        if not date_pattern.match(date):
+            print(f"Invalid date format for {date}, skipping entry.")
+            continue
+
         languages = data["languages"]
         contribution_types = data["contribution_types"]
         insight = insights.get(date, {})
@@ -131,28 +150,6 @@ def generate_heatmap_json(structured_data: Dict[str, Any], insights: Dict[str, A
             "languages": languages,
             "contribution_types": contribution_types,
             "insights": insight  # Adding insights to the JSON structure
-        }
-
-        heatmap_json[date] = heatmap_entry
-
-    return heatmap_json
-
-# Step 5: Visualize heatmap with enriched data
-def generate_heatmap_json(structured_data: Dict[str, Any], language_summary: Dict[str, Any]) -> Dict[str, Any]:
-    heatmap_json = {}
-
-    for date, data in structured_data.items():
-        languages = data["languages"]
-        contribution_types = data["contribution_types"]
-        languages_summary = language_summary.get(date, {})
-
-        heatmap_entry = {
-            "date": date,
-            "total_commits": data["total_commits"],
-            "total_commit_size": data["total_commit_size"],
-            "languages": languages,
-            "contribution_types": contribution_types,
-            "languages_summary": languages_summary
         }
 
         heatmap_json[date] = heatmap_entry
@@ -176,18 +173,10 @@ def visualize_heatmap(json_data: Dict[str, Any], output_path: str = "heatmap.png
     }
 
     for date, data in json_data.items():
-        for language, commit_count in data["languages"].items():
-            color = language_colors.get(language, "gray")  # Default to gray if language not in predefined list
-            heatmap_data.append({
-                "Date": date,
-                "Language": language,
-                "Commits": commit_count,
-                "Color": color
-            })
-
+        total_commits = data["total_commit_size"]
         commit_sizes.append({
             "Date": date,
-            "Total Commit Size": data["total_commit_size"]
+            "Total Commit Size": total_commits
         })
 
         pull_requests.append({
@@ -195,39 +184,73 @@ def visualize_heatmap(json_data: Dict[str, Any], output_path: str = "heatmap.png
             "Pull Requests": data["contribution_types"].get("pull_request", 0)
         })
 
+        for language, commit_count in data["languages"].items():
+            heatmap_data.append({
+                "Date": date,
+                "Language": language,
+                "Commits": commit_count,
+                "Total Commits": total_commits,
+                "Color": language_colors.get(language, "gray")
+            })
+
     # Convert lists to DataFrames
     heatmap_df = pd.DataFrame(heatmap_data)
     commit_size_df = pd.DataFrame(commit_sizes)
     pull_requests_df = pd.DataFrame(pull_requests)
 
-    # Plotting the combined heatmap and line/bar charts
-    plt.figure(figsize=(14, 8))
+    # Normalize dates to evenly spaced intervals for the x-axis
+    heatmap_df["Date"] = pd.to_datetime(heatmap_df["Date"])
+    heatmap_df.sort_values("Date", inplace=True)
 
-    # Heatmap in the background for languages
-    pivot_table = heatmap_df.pivot_table(index="Date", columns="Language", values="Commits", fill_value=0)
+    # Create a normalized time index (0-9) for consistent plotting
+    heatmap_df["TimeIndex"] = pd.cut(heatmap_df["Date"], bins=10, labels=False)
+    commit_size_df["TimeIndex"] = pd.cut(pd.to_datetime(commit_size_df["Date"]), bins=10, labels=False)
+    pull_requests_df["TimeIndex"] = pd.cut(pd.to_datetime(pull_requests_df["Date"]), bins=10, labels=False)
+
+    # Set up the figure and axes
+    fig, ax1 = plt.subplots(figsize=(14, 8))
+
+    # Plot language gradient heatmap as the background
+    pivot_table = heatmap_df.pivot_table(index="TimeIndex", columns="Language", values="Commits", fill_value=0)
+    
+    # Normalize the pivot table by row (time) to get a relative gradient effect
+    pivot_normalized = pivot_table.div(pivot_table.sum(axis=1), axis=0)
+    
     sns.heatmap(
-        pivot_table,
-        annot=False,
-        fmt=".0f",
-        cmap=sns.color_palette("YlGnBu", as_cmap=True),
+        pivot_normalized.T,
+        ax=ax1,
+        cmap="RdYlGn",  # Adjusting to a better gradient for visibility
         linewidths=.5,
-        cbar=False
+        cbar=False,
+        rasterized=True  # to improve performance for large heatmaps
     )
 
-    # Line plot for large commits
-    sns.lineplot(x="Date", y="Total Commit Size", data=commit_size_df, marker="o", color="black", linewidth=2, label="Commit Size")
+    # Line plot for commit sizes over time (white line)
+    sns.lineplot(x="TimeIndex", y="Total Commit Size", data=commit_size_df, color="white", linewidth=2, label="Commit Size", ax=ax1)
 
-    # Bar plot for pull requests (as a separate axis to avoid scale issues)
-    ax2 = plt.gca().twinx()  # Create a second y-axis for the pull requests
-    sns.barplot(x="Date", y="Pull Requests", data=pull_requests_df, alpha=0.6, color="blue", ax=ax2, label="Pull Requests")
+    # Bar plot for pull requests (black bars) with a second y-axis
+    ax2 = ax1.twinx()
+    sns.barplot(x="TimeIndex", y="Pull Requests", data=pull_requests_df, color="black", alpha=0.7, ax=ax2, label="Pull Requests")
 
-    plt.title("GitHub Contributions Over Time")
-    plt.xlabel("Date")
-    plt.ylabel("Commits and Pull Requests")
+    # Customize the axes
+    ax1.set_xlabel("Time")
+    ax1.set_ylabel("Commit Size", color="white")
+    ax2.set_ylabel("Pull Requests", color="black")
+    
+    ax1.tick_params(axis='y', colors='white')
+    ax2.tick_params(axis='y', colors='black')
+
+    plt.title("GitHub Contributions Over Time", color="white")
     plt.xticks(rotation=45)
-    plt.legend(loc="upper left")
+    
+    # Place legends below the chart
+    fig.text(0.1, 0.01, "Commits (white line) | PRs (black bars)", ha="left", fontsize=12, color="white")
+    fig.text(0.9, 0.01, "Languages: Red (Python), Green (TypeScript), etc.", ha="right", fontsize=12, color="white")
+
+    # Set background color to black to make elements stand out
+    fig.patch.set_facecolor('black')
+    ax1.set_facecolor('black')
+
     plt.tight_layout()
-
-    plt.savefig(output_path)
+    plt.savefig(output_path, facecolor=fig.get_facecolor())
     print(f"Combined heatmap saved as {output_path}")
-
