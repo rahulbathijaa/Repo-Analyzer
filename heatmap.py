@@ -5,6 +5,10 @@ from datetime import datetime
 from collections import defaultdict
 import outlines
 from typing import Dict, Any
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
 
 # Define a Pydantic model to enforce type constraints on the fetched data
 class ContributionData(BaseModel):
@@ -58,10 +62,13 @@ def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str,
 
 # Process and structure contributions data
 def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]:
-    # Initialize a defaultdict to handle nested structures
-    structured_data: DefaultDict[str, DefaultDict[str, Any]] = defaultdict(
-        lambda: defaultdict(lambda: {"total_commits": 0, "total_commit_size": 0, "languages": defaultdict(int), "contribution_types": defaultdict(int)})
-    )
+    # Initialize a defaultdict with a more complex nested structure
+    structured_data = defaultdict(lambda: {
+        "total_commits": 0,
+        "total_commit_size": 0,
+        "languages": defaultdict(int),
+        "contribution_types": defaultdict(int)
+    })
 
     # Process each contribution
     for contribution in contributions:
@@ -79,7 +86,7 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
     # Convert defaultdict to a regular dictionary for JSON serialization
     structured_data = {date: dict(data) for date, data in structured_data.items()}
 
-    # Validate and return the structured data using Pydantic or Outlines
+    # Validate and return the structured data
     try:
         validated_data = {date: ProcessedContributionData(**data).dict() for date, data in structured_data.items()}
     except ValidationError as e:
@@ -90,11 +97,10 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
 
 # Define the structure for processed contributions data
 class ProcessedContributionData(BaseModel):
-    date: str
     total_commits: int
     total_commit_size: int
-    languages: Dict[str, int]  # Language: Number of commits
-    contribution_types: Dict[str, int]  # Contribution type: Number of occurrences
+    languages: Dict[str, int]
+    contribution_types: Dict[str, int]
 
 class LanguageUsageSummary(BaseModel):
     total_commits: int
@@ -151,28 +157,105 @@ heatmap_schema = {
     "required": ["date", "total_commits", "total_commit_size", "languages", "contribution_types"]
 }
 
-# Generate Complex JSON Structure for Heatmap
+
 def generate_heatmap_json(structured_data: Dict[str, Any], language_summary: Dict[str, Any]) -> Dict[str, Any]:
     heatmap_json = {}
 
     for date, data in structured_data.items():
-        heatmap_entry = {
-            "date": date,
-            "total_commits": data["total_commits"],
-            "total_commit_size": data["total_commit_size"],
-            "languages": data["languages"],
-            "contribution_types": data["contribution_types"],
-        }
+        languages = data["languages"]
+        contribution_types = data["contribution_types"]
+        languages_summary = language_summary.get(date, {})
+        
+        # Define the prompt template for generating the JSON structure
+        heatmap_entry_template = outlines.text.prompt_template(
+            """
+            {
+                "date": "{{date}}",
+                "total_commits": {{total_commits}},
+                "total_commit_size": {{total_commit_size}},
+                "languages": {{languages}},
+                "contribution_types": {{contribution_types}},
+                "languages_summary": {{languages_summary}}
+            }
+            """
+        )
 
-        # Include language summary data if available
-        if date in language_summary:
-            heatmap_entry["languages_summary"] = language_summary[date]
+        # Generate JSON using the Outlines template
+        heatmap_entry = heatmap_entry_template(
+            date=date,
+            total_commits=data["total_commits"],
+            total_commit_size=data["total_commit_size"],
+            languages=languages,
+            contribution_types=contribution_types,
+            languages_summary=languages_summary
+        )
 
-        # Validate the entry using Outlines
+        # Integrate the validate_json function within the function block
         try:
-            validated_entry = outlines.models.json(heatmap_schema).validate(heatmap_entry)
-            heatmap_json[date] = validated_entry
-        except ValueError as e:
+            json_data = outlines.text.validate_json(heatmap_entry)  # Ensure the JSON is valid
+            heatmap_json[date] = json_data
+        except Exception as e:
             print(f"Validation error for date {date}: {e}")
 
     return heatmap_json
+
+def visualize_heatmap(json_data: Dict[str, Any], output_path: str = "heatmap.png"):
+    # Convert JSON data into a format suitable for heatmap visualization
+    heatmap_data = []
+    for date, data in json_data.items():
+        for language, commit_count in data["languages"].items():
+            heatmap_data.append({
+                "Date": date,
+                "Language": language,
+                "Commits": commit_count,
+                "Total Commits": data["total_commits"],
+                "Total Commit Size": data["total_commit_size"]
+            })
+
+    # Convert the list of dictionaries into a DataFrame
+    df = pd.DataFrame(heatmap_data)
+
+    # Pivot the DataFrame for heatmap plotting
+    heatmap_df = df.pivot("Date", "Language", "Commits")
+
+    # Create a heatmap using seaborn
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(heatmap_df, annot=True, fmt="d", cmap="YlGnBu", linewidths=.5)
+    plt.title("Language Contributions Over Time")
+    plt.xlabel("Programming Language")
+    plt.ylabel("Date")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Save the heatmap as an image
+    plt.savefig(output_path)
+    print(f"Heatmap saved as {output_path}")
+
+
+
+
+
+# def generate_heatmap_json(structured_data: Dict[str, Any], language_summary: Dict[str, Any]) -> Dict[str, Any]:
+#     heatmap_json = {}
+
+#     for date, data in structured_data.items():
+#         heatmap_entry = {
+#             "date": date,
+#             "total_commits": data["total_commits"],
+#             "total_commit_size": data["total_commit_size"],
+#             "languages": data["languages"],
+#             "contribution_types": data["contribution_types"],
+#         }
+
+#         # Include language summary data if available
+#         if date in language_summary:
+#             heatmap_entry["languages_summary"] = language_summary[date]
+
+#         # Validate the entry using Outlines
+#         try:
+#             validated_entry = outlines.models.validate(heatmap_schema, heatmap_entry)
+#             heatmap_json[date] = validated_entry
+#         except outlines.ValidationError as e:
+#             print(f"Validation error for date {date}: {e}")
+
+#     return heatmap_json
