@@ -1,13 +1,25 @@
 import React from 'react';
-import { HeatmapData } from '../../types';
+
+interface HeatmapData {
+  [date: string]: {
+    total_commits: number;
+    languages: { [language: string]: number };
+    contribution_types: { [type: string]: number };
+    insights: {
+      most_used_language: string;
+      significant_prs: boolean;
+    };
+  };
+}
 
 interface HeatmapComponentProps {
   heatmapData: HeatmapData;
 }
 
 const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
-  const maxCommits = Math.max(...Object.values(heatmapData).map(data => data.totalCommits));
-  const maxPRs = Math.max(...Object.values(heatmapData).map(data => data.pullRequests));
+  const dates = Object.keys(heatmapData).sort();
+  const timeFrames = 10;
+  const framesPerSection = Math.ceil(dates.length / timeFrames);
 
   const getLanguageColor = (language: string) => {
     const colors: { [key: string]: string } = {
@@ -21,21 +33,28 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
     return colors[language] || colors.Other;
   };
 
+  const maxCommits = Math.max(...Object.values(heatmapData).map(data => data.total_commits));
+  const maxPRs = Math.max(...Object.values(heatmapData).map(data => data.contribution_types['pull_request'] || 0));
+
   return (
     <div className="heatmap-container bg-black p-4 rounded-lg">
       <h2 className="text-2xl font-bold mb-4 text-white">Contribution Heatmap</h2>
       <div className="relative h-64">
-        {Object.entries(heatmapData).map(([timeIndex, data], index) => {
-          const leftPosition = `${(index / 9) * 100}%`;
-          const commitHeight = `${(data.totalCommits / maxCommits) * 100}%`;
-          const prHeight = `${(data.pullRequests / maxPRs) * 100}%`;
+        {Array.from({ length: timeFrames }).map((_, index) => {
+          const startDate = dates[index * framesPerSection];
+          const endDate = dates[Math.min((index + 1) * framesPerSection - 1, dates.length - 1)];
+          const sectionData = heatmapData[startDate];
+
+          const leftPosition = `${(index / (timeFrames - 1)) * 100}%`;
+          const commitHeight = `${(sectionData.total_commits / maxCommits) * 100}%`;
+          const prHeight = `${((sectionData.contribution_types['pull_request'] || 0) / maxPRs) * 100}%`;
 
           return (
-            <div key={timeIndex} className="absolute bottom-0" style={{ left: leftPosition, width: '10%' }}>
+            <div key={index} className="absolute bottom-0" style={{ left: leftPosition, width: `${100 / timeFrames}%` }}>
               <div 
                 className="absolute bottom-0 w-full"
                 style={{ 
-                  backgroundColor: getLanguageColor(data.dominantLanguage),
+                  backgroundColor: getLanguageColor(sectionData.insights.most_used_language),
                   height: '100%',
                   opacity: 0.5
                 }}
@@ -48,6 +67,9 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
                 className="absolute bottom-0 w-1 bg-white left-1/2 transform -translate-x-1/2"
                 style={{ height: commitHeight }}
               />
+              <div className="absolute bottom-0 text-xs text-white transform -rotate-90 origin-bottom-left" style={{ left: '100%' }}>
+                {startDate.split('-')[0]}
+              </div>
             </div>
           );
         })}
