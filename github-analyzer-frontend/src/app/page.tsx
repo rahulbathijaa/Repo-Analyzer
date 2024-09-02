@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import HeatmapComponent from './components/ui/HeatmapComponent';
+import { ApiResponse } from './types';
 
 export default function Home() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -15,8 +17,8 @@ export default function Home() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const result = await response.json();
-        console.log('Received data:', result);  // Log the received data
+        const result: ApiResponse = await response.json();
+        console.log('Received data:', result);
         setData(result);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -41,19 +43,25 @@ export default function Home() {
   }
 
   return (
-    <div>
-      <h1>Repository Analysis</h1>
-      <h2>User Profile</h2>
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Repository Analysis</h1>
+      <h2 className="text-2xl font-bold mb-4">User Profile</h2>
       {data?.user_profile ? (
         <pre>{JSON.stringify(data.user_profile, null, 2)}</pre>
       ) : (
         <p>No user profile data available</p>
       )}
-      <h2>Repository Analysis</h2>
+      <h2 className="text-2xl font-bold mb-4 mt-8">Repository Analysis</h2>
       {data?.repo_analysis ? (
         <pre>{JSON.stringify(data.repo_analysis, null, 2)}</pre>
       ) : (
         <p>No repository analysis data available</p>
+      )}
+      <h2 className="text-2xl font-bold mb-4 mt-8">Contribution Heatmap</h2>
+      {data?.heatmap_data ? (
+        <HeatmapComponent heatmapData={data.heatmap_data} />
+      ) : (
+        <p>No heatmap data available</p>
       )}
     </div>
   );
