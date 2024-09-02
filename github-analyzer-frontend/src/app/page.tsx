@@ -44,13 +44,17 @@ export default function Home() {
     <div>
       <h1>Repository Analysis</h1>
       <h2>User Profile</h2>
-      {data.user_profile ? (
+      {data?.user_profile ? (
         <pre>{JSON.stringify(data.user_profile, null, 2)}</pre>
       ) : (
         <p>No user profile data available</p>
       )}
-      <h2>Full Data</h2>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+      <h2>Repository Analysis</h2>
+      {data?.repo_analysis ? (
+        <pre>{JSON.stringify(data.repo_analysis, null, 2)}</pre>
+      ) : (
+        <p>No repository analysis data available</p>
+      )}
     </div>
   );
 }
