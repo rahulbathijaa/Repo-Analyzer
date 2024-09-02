@@ -3,6 +3,7 @@ from typing import Dict, Any
 from outlines import prompt
 import json
 from jinja2 import Environment
+import re
 
 # Set up the Jinja2 environment and add 'max' to globals
 jinja_env = Environment()
@@ -128,15 +129,15 @@ def generate_narrative_template(repo_name: str, score: float, surface_insights: 
 
     Please provide a comprehensive analysis in 4 paragraphs:
 
-    1. Overview: Summarize the repository's popularity and activity based on stars, forks, and watchers.
+    1. Summarize the repository's popularity and activity based on stars, forks, and watchers.
 
-    2. Community Engagement: Analyze the community's involvement using the forks to stars ratio and community interest metric.
+    2. Analyze the community's involvement using the forks to stars ratio and community interest metric.
 
-    3. Issue Management: Evaluate the project's issue handling by comparing open issues to closed issues.
+    3. Evaluate the project's issue handling by comparing open issues to closed issues.
 
-    4. Recommendations: Suggest improvements based on the documentation score and overall repository health.
+    4. Suggest improvements based on the documentation score and overall repository health.
 
-    Each paragraph should be 2-3 sentences long, providing specific insights and actionable advice.
+    Each paragraph should be 2-3 sentences long, providing specific insights and actionable advice. Do not include paragraph numbers or headers in your response.
     """
 
 def generate_narrative_description(model, tokenizer, insights: Dict[str, Any]) -> str:
@@ -160,11 +161,17 @@ def generate_narrative_description(model, tokenizer, insights: Dict[str, Any]) -
     # Remove any remaining prompt text from the output
     narrative = narrative.replace(prompt_text, "").strip()
 
+    # Remove any headers or numbering
+    narrative = re.sub(r'^\d+\.\s*|\*\*[^*]+\*\*', '', narrative, flags=re.MULTILINE)
+
     # Split the narrative into paragraphs and join them back with double newlines
-    paragraphs = narrative.split('\n\n')
+    paragraphs = [p.strip() for p in narrative.split('\n\n') if p.strip()]
     narrative = "\n\n".join(paragraphs)
 
-    return narrative
+    # Remove any repetitive text at the end
+    narrative = re.sub(r'(Please let me know if you want me to adjust anything\.?.*$)', '', narrative, flags=re.DOTALL)
+
+    return narrative.strip()
 
 def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
     # Fetch the repository data
