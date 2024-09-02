@@ -45,6 +45,11 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
           const endDate = dates[Math.min((index + 1) * framesPerSection - 1, dates.length - 1)];
           const sectionData = heatmapData[startDate];
 
+          if (!sectionData) {
+            console.warn(`No data for startDate: ${startDate}`);
+            return null; // Skip this section if no data is available
+          }
+
           const leftPosition = `${(index / (timeFrames - 1)) * 100}%`;
           const commitHeight = `${(sectionData.total_commits / maxCommits) * 100}%`;
           const prHeight = `${((sectionData.contribution_types['pull_request'] || 0) / maxPRs) * 100}%`;

@@ -41,8 +41,7 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
         following {
           totalCount
         }
-        repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          totalCount
+        repositories(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             name
             primaryLanguage {
@@ -69,42 +68,33 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
       }
     }
     """
-
-    variables = {"username": username}
     
-    response = requests.post(url, json={'query': query, 'variables': variables}, headers=headers)
+    response = requests.post(url, headers=headers, json={"query": query, "variables": {"username": username}})
     data = response.json()
     
-    if 'errors' in data:
-        print(f"GraphQL query error: {data['errors']}")
-        return {}
-
-    user_data = data['data']['user']
+    user_profile = data["data"]["user"]
+    repo = user_profile["repositories"]["nodes"][0]  # Get the first repository
     
-    # Prepare user profile data
-    user_profile = {
-        "username": user_data['login'],
-        "avatar_url": user_data['avatarUrl'],
-        "years_on_github": calculate_years_on_github(user_data['createdAt']),
-        "public_repos": user_data['repositories']['totalCount'],
-        "followers": user_data['followers']['totalCount'],
-        "following": user_data['following']['totalCount'],
-        "bio": user_data['bio'],
+    repo_info = {
+        "name": repo["name"],
+        "primary_language": repo["primaryLanguage"]["name"] if repo["primaryLanguage"] else "Unknown",
+        "commits": []
     }
-
-    # Process repository data (limit to 1 for now)
-    repo_analysis = []
-    for repo in user_data['repositories']['nodes'][:1]:
-        repo_info = {
-            "name": repo['name'],
-            "language": repo['primaryLanguage']['name'] if repo['primaryLanguage'] else 'Unknown',
-            # Add other repo metrics here
-        }
-        repo_analysis.append(repo_info)
-
+    
+    for commit in repo["defaultBranchRef"]["target"]["history"]["edges"]:
+        commit_node = commit["node"]
+        repo_info["commits"].append({
+            "date": commit_node["committedDate"],  # Ensure date is a string
+            "message": commit_node["message"],
+            "additions": commit_node["additions"],
+            "deletions": commit_node["deletions"],
+            "language": repo["primaryLanguage"]["name"] if repo["primaryLanguage"] else "Unknown",
+            "contribution_type": "commit"
+        })
+    
     return {
         "user_profile": user_profile,
-        "repo_analysis": repo_analysis
+        "repo_analysis": [repo_info]
     }
 
 def calculate_years_on_github(created_at: str) -> int:
@@ -121,7 +111,14 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
     })
 
     for contribution in contributions:
-        date = contribution["date"].strftime("%Y-%m-%d")
+        # Debugging: Print the contribution to check its structure
+        print("Processing contribution:", json.dumps(contribution, indent=2))
+        
+        if "date" not in contribution:
+            print("Missing date in contribution:", json.dumps(contribution, indent=2))
+            continue  # Skip this contribution if date is missing
+        
+        date = contribution["date"]
         language = contribution["language"]
         contribution_type = contribution["contribution_type"]
 
@@ -129,6 +126,9 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
         structured_data[date]["total_commits"] += 1
         structured_data[date]["languages"][language] += 1
         structured_data[date]["contribution_types"][contribution_type] += 1
+
+    # Debugging: Print the structured data before validation
+    print("Structured data before validation:", json.dumps(structured_data, indent=2))
 
     # Convert defaultdicts to regular dictionaries
     structured_data = {date: dict(data) for date, data in structured_data.items()}
@@ -138,6 +138,9 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
     except ValidationError as e:
         print(f"Validation error: {e}")
         return {}
+
+    # Debugging: Print the validated data
+    print("Validated data:", json.dumps(validated_data, indent=2))
 
     return validated_data
 
