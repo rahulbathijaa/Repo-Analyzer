@@ -24,14 +24,25 @@ class ProcessedContributionData(BaseModel):
     contribution_types: Dict[str, int]
 
 # Step 1: Fetch GitHub contributions data
-def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str, Any]]:
+def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]:
     headers = {"Authorization": f"Bearer {github_token}"}
     url = "https://api.github.com/graphql"
     
     query = """
     query ($username: String!) {
       user(login: $username) {
-        repositories(first: 3) {
+        login
+        avatarUrl
+        createdAt
+        bio
+        followers {
+          totalCount
+        }
+        following {
+          totalCount
+        }
+        repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+          totalCount
           nodes {
             name
             primaryLanguage {
@@ -40,14 +51,13 @@ def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str,
             defaultBranchRef {
               target {
                 ... on Commit {
-                  history(first: 5) {
+                  history(first: 100) {
                     edges {
                       node {
                         committedDate
                         message
-                        author {
-                          name
-                        }
+                        additions
+                        deletions
                       }
                     }
                   }
@@ -67,35 +77,40 @@ def fetch_contributions_data(username: str, github_token: str) -> List[Dict[str,
     
     if 'errors' in data:
         print(f"GraphQL query error: {data['errors']}")
-        return []
+        return {}
 
-    contributions = []
+    user_data = data['data']['user']
+    
+    # Prepare user profile data
+    user_profile = {
+        "username": user_data['login'],
+        "avatar_url": user_data['avatarUrl'],
+        "years_on_github": calculate_years_on_github(user_data['createdAt']),
+        "public_repos": user_data['repositories']['totalCount'],
+        "followers": user_data['followers']['totalCount'],
+        "following": user_data['following']['totalCount'],
+        "bio": user_data['bio'],
+    }
 
-    try:
-        repos = data['data']['user']['repositories']['nodes']
-        for repo in repos:
-            repo_name = repo['name']
-            language = repo['primaryLanguage']['name'] if repo['primaryLanguage'] else 'Unknown'
-            commits = repo['defaultBranchRef']['target']['history']['edges']
+    # Process repository data (limit to 1 for now)
+    repo_analysis = []
+    for repo in user_data['repositories']['nodes'][:1]:
+        repo_info = {
+            "name": repo['name'],
+            "language": repo['primaryLanguage']['name'] if repo['primaryLanguage'] else 'Unknown',
+            # Add other repo metrics here
+        }
+        repo_analysis.append(repo_info)
 
-            for commit in commits:
-                commit_date = commit['node']['committedDate']
-                try:
-                    parsed_date = datetime.strptime(commit_date, "%Y-%m-%dT%H:%M:%SZ")
-                    contribution = {
-                        "repo_name": repo_name,
-                        "date": parsed_date,
-                        "language": language,
-                        "contribution_type": "commit"
-                    }
-                    contributions.append(contribution)
-                except ValueError as e:
-                    print(f"Error parsing date {commit_date}: {e}")
-    except KeyError as e:
-        print(f"Error parsing GraphQL response: {e}")
-        print(f"Response data: {data}")
+    return {
+        "user_profile": user_profile,
+        "repo_analysis": repo_analysis
+    }
 
-    return contributions
+def calculate_years_on_github(created_at: str) -> int:
+    user_creation_date = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ")
+    current_date = datetime.now()
+    return current_date.year - user_creation_date.year
 
 # Step 2: Process and structure contributions data
 def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]:

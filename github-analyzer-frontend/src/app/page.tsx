@@ -11,12 +11,12 @@ export default function Home() {
     async function fetchData() {
       setIsLoading(true);
       try {
-        // Adjust the URL to your deployed backend
         const response = await fetch('https://rahulbathijaa--meta-llama-project-fastapi-app.modal.run/api/analyze?username=rahulbathijaa');
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const result = await response.json();
+        console.log('Received data:', result);  // Log the received data
         setData(result);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -43,6 +43,13 @@ export default function Home() {
   return (
     <div>
       <h1>Repository Analysis</h1>
+      <h2>User Profile</h2>
+      {data.user_profile ? (
+        <pre>{JSON.stringify(data.user_profile, null, 2)}</pre>
+      ) : (
+        <p>No user profile data available</p>
+      )}
+      <h2>Full Data</h2>
       <pre>{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
