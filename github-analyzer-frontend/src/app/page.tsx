@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HeatmapComponent from './components/ui/HeatmapComponent';
 import UserProfile from './components/ui/UserProfile';  // Add this import
 import { ApiResponse } from './types';
+import RepoAnalysis from './components/ui/RepoAnalysis';  // Create this component
 
 export default function Home() {
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -65,7 +66,7 @@ export default function Home() {
 
       <h2 className="text-2xl font-bold mb-4 mt-8">Repository Analysis</h2>
       {data?.repo_analysis ? (
-        <pre>{JSON.stringify(data.repo_analysis, null, 2)}</pre>
+        <RepoAnalysis analysis={data.repo_analysis} />
       ) : (
         <p>No repository analysis data available</p>
       )}

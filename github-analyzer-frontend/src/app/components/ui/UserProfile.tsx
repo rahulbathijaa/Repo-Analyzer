@@ -17,19 +17,19 @@ const UserProfile: React.FC<UserProfileProps> = ({ userProfile }) => {
   return (
     <div className="bg-black text-white shadow-md rounded px-8 py-6 mb-4 flex items-center">
       <div className="flex-grow">
-        <h1 className="text-4xl font-bold mb-4">{userProfile.login}</h1>
-        <div className="flex">
-          <div className="w-1/2 pr-4">
+        <h1 className="text-5xl font-bold mb-4">{userProfile.login}</h1>
+        <div className="flex space-x-8">
+          <div className="flex-1">
             <p className="mb-2">{userProfile.bio || 'No bio available'}</p>
             <p className="mb-2"># of years on Github: {yearsOnGithub}</p>
           </div>
-          <div className="w-1/2">
+          <div className="flex-1">
             <p className="mb-2">Followers: {userProfile.followers.totalCount}</p>
             <p>Following: {userProfile.following.totalCount}</p>
           </div>
         </div>
       </div>
-      <div className="flex-shrink-0 ml-4">
+      <div className="flex-shrink-0 ml-8">
         <img src={userProfile.avatarUrl} alt={`${userProfile.login}'s avatar`} className="w-32 h-32 rounded-full" />
       </div>
     </div>

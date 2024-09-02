@@ -106,51 +106,86 @@ def repo_summary_template(repo_name: str, score: float, insights: Dict[str, Any]
     """
     pass
 
+@prompt
+def generate_narrative_template(repo_name: str, score: float, surface_insights: Dict[str, Any], combined_insights: Dict[str, Any]) -> str:
+    """
+    Analyze the following repository metrics and provide a detailed report:
+
+    Repository: {{ repo_name }}
+    Overall Score: {{ score }}
+
+    Surface Insights:
+    - Stars: {{ surface_insights.stars }}
+    - Forks: {{ surface_insights.forks }}
+    - Open Issues: {{ surface_insights.open_issues }}
+    - Watchers: {{ surface_insights.watchers }}
+    - Issues Closed: {{ surface_insights.issues_closed }}
+    - Documentation Score: {{ surface_insights.documentation_score }}
+
+    Combined Insights:
+    - Forks to Stars Ratio: {{ combined_insights.forks_to_stars_ratio }}
+    - Community Interest: {{ combined_insights.community_interest }}
+
+    Please provide a comprehensive analysis in 4 paragraphs:
+
+    1. Overview: Summarize the repository's popularity and activity based on stars, forks, and watchers.
+
+    2. Community Engagement: Analyze the community's involvement using the forks to stars ratio and community interest metric.
+
+    3. Issue Management: Evaluate the project's issue handling by comparing open issues to closed issues.
+
+    4. Recommendations: Suggest improvements based on the documentation score and overall repository health.
+
+    Each paragraph should be 2-3 sentences long, providing specific insights and actionable advice.
+    """
+
 def generate_narrative_description(model, tokenizer, insights: Dict[str, Any]) -> str:
-    prompt_text = (
-        f"Analyze the following repository metrics and provide a detailed report:\n"
-        f"Metrics: {insights}\n\n"
-        f"Report:"
+    surface_insights = insights['surface_level']
+    combined_insights = insights['combined_insights']
+    repo_name = surface_insights['repo_name']
+    score = calculate_score(surface_insights)
+
+    prompt_text = generate_narrative_template(
+        repo_name=repo_name,
+        score=score,
+        surface_insights=surface_insights,
+        combined_insights=combined_insights
     )
 
     inputs = tokenizer(prompt_text, return_tensors="pt")
-    
-    # Move input_ids to the correct device (GPU)
     inputs = {key: value.to(model.device) for key, value in inputs.items()}
-    
-    # Set pad_token_id to eos_token_id to avoid warnings
-    outputs = model.generate(inputs["input_ids"], max_length=500, pad_token_id=tokenizer.eos_token_id)
-    
+    outputs = model.generate(inputs["input_ids"], max_length=1000, pad_token_id=tokenizer.eos_token_id)
     narrative = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    return narrative
+    # Remove any remaining prompt text from the output
+    narrative = narrative.replace(prompt_text, "").strip()
 
+    # Split the narrative into paragraphs and join them back with double newlines
+    paragraphs = narrative.split('\n\n')
+    narrative = "\n\n".join(paragraphs)
+
+    return narrative
 
 def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
     # Fetch the repository data
     repo_data = fetch_repo_data(username, github_token)
     
-    # Step 1: Calculate Surface-Level Insights
+    # Calculate Surface-Level Insights
     metrics = surface_level_insights(repo_data)
     
-    # Step 2: Generate Combined Insights
+    # Generate Combined Insights
     insights_combined = combined_insights(metrics)
     
-    # Step 3: Calculate the Overall Score
-    score = calculate_score({
-        **metrics,
-        "forks_to_stars_ratio": insights_combined.get("forks_to_stars_ratio", 0),
-        "community_interest": insights_combined.get("community_interest", 0),
-        "documentation_score": metrics.get("documentation_score", 0)
-    })
-    
-    # Step 4: Generate the Narrative Description
+    # Generate the Narrative Description
     narrative = generate_narrative_description(model, tokenizer, {
         "surface_level": metrics,
         "combined_insights": insights_combined
     })
     
-    # Return a simplified JSON structure
+    # Calculate the Overall Score
+    score = calculate_score(metrics)
+    
+    # Return a structured output
     return {
         "repo_name": repo_data['repo_name'],
         "stars": repo_data['stars'],
