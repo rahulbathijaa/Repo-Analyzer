@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import HeatmapComponent from './components/ui/HeatmapComponent';
+import UserProfile from './components/ui/UserProfile';  // Add this import
 import { ApiResponse } from './types';
 
 export default function Home() {
@@ -45,12 +46,23 @@ export default function Home() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Repository Analysis</h1>
+      
+      {/* Add the UserProfile component here */}
       <h2 className="text-2xl font-bold mb-4">User Profile</h2>
+      {data?.user_profile ? (
+        <UserProfile userProfile={data.user_profile} />
+      ) : (
+        <p>No user profile data available</p>
+      )}
+
+      {/* Keep the existing JSON output */}
+      <h2 className="text-2xl font-bold mb-4 mt-8">User Profile (JSON)</h2>
       {data?.user_profile ? (
         <pre>{JSON.stringify(data.user_profile, null, 2)}</pre>
       ) : (
         <p>No user profile data available</p>
       )}
+
       <h2 className="text-2xl font-bold mb-4 mt-8">Repository Analysis</h2>
       {data?.repo_analysis ? (
         <pre>{JSON.stringify(data.repo_analysis, null, 2)}</pre>
