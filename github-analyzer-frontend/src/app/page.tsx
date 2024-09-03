@@ -45,37 +45,30 @@ export default function Home() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Repository Analysis</h1>
-      
-      {/* Add the UserProfile component here */}
-      <h2 className="text-2xl font-bold mb-4">User Profile</h2>
-      {data?.user_profile ? (
-        <UserProfile userProfile={data.user_profile} />
-      ) : (
-        <p>No user profile data available</p>
-      )}
-
-      {/* Keep the existing JSON output */}
-      <h2 className="text-2xl font-bold mb-4 mt-8">User Profile (JSON)</h2>
-      {data?.user_profile ? (
-        <pre>{JSON.stringify(data.user_profile, null, 2)}</pre>
-      ) : (
-        <p>No user profile data available</p>
-      )}
-
-      <h2 className="text-2xl font-bold mb-4 mt-8">Repository Analysis</h2>
-      {data?.repo_analysis ? (
-        <RepoAnalysis analysis={data.repo_analysis} />
-      ) : (
-        <p>No repository analysis data available</p>
-      )}
-      <h2 className="text-2xl font-bold mb-4 mt-8">Contribution Heatmap</h2>
-      {data?.heatmap_data ? (
-        <HeatmapComponent heatmapData={data.heatmap_data} />
-      ) : (
-        <p>No heatmap data available</p>
-      )}
-    </div>
+    <main className="min-h-screen bg-black text-white p-8 md:p-12 lg:p-16"> {/* Added padding classes */}
+      <div className="profile-container mt-6 pb-12"> {/* Added mb-12 for 48px bottom margin */}
+        {data?.user_profile ? (
+          <UserProfile userProfile={data.user_profile} />
+        ) : (
+          <p>No user profile data available</p>
+        )}
+      </div>
+      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
+      <div className="repo-analysis mt-12 pb-12"> {/* Added my-12 for 48px top and bottom margin */}
+        {data?.repo_analysis ? (
+          <RepoAnalysis analysis={data.repo_analysis} />
+        ) : (
+          <p>No repository analysis data available</p>
+        )}
+      </div>
+      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
+      <div className="contribution-heatmap mt-12"> {/* Added mt-12 for 48px top margin */}
+        {data?.heatmap_data ? (
+          <HeatmapComponent heatmapData={data.heatmap_data} />
+        ) : (
+          <p>No heatmap data available</p>
+        )}
+      </div>
+    </main>
   );
 }

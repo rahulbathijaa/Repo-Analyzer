@@ -15,7 +15,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userProfile }) => {
   const yearsOnGithub = new Date().getFullYear() - new Date(userProfile.createdAt).getFullYear();
 
   return (
-    <div className="bg-black text-white shadow-md rounded px-8 py-6 mb-4 flex items-center">
+    <div className="bg-black text-white shadow-md px-8 py-6  flex items-center">
       <div className="flex-grow">
         <h1 className="text-5xl font-bold mb-4">{userProfile.login}</h1>
         <div className="flex space-x-8">

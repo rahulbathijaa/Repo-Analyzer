@@ -23,10 +23,10 @@ const RepoAnalysis: React.FC<RepoAnalysisProps> = ({ analysis }) => {
   const narrativeParagraphs = analysis.narrative.split('\n\n');
 
   return (
-    <div className="flex bg-black text-white p-4 rounded-lg">
-      {/* Left column */}
-      <div className="flex-1 pr-4">
-        <h3 className="text-xl font-bold mb-4">{analysis.repo_name}</h3>
+    <div className="flex bg-black text-white p-8 border border-dashed border-[#80EE64] rounded-lg mx-16">
+      {/* Left column (smaller) */}
+      <div className="w-1/4 pr-4 flex flex-col">
+        <h3 className="text-3xl font-bold mb-6">{analysis.repo_name}</h3>
         <p className="mb-2">Stars: {analysis.stars}</p>
         <p className="mb-2">Forks: {analysis.forks}</p>
         <p className="mb-2">Open Issues: {analysis.open_issues}</p>
@@ -35,13 +35,13 @@ const RepoAnalysis: React.FC<RepoAnalysisProps> = ({ analysis }) => {
       </div>
 
       {/* Divider */}
-      <div className="w-px bg-gray-600 mx-4"></div>
+      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
 
-      {/* Right column */}
-      <div className="flex-1 pl-4">
-        <h4 className="text-lg font-semibold mb-3">Repo Summary</h4>
+      {/* Right column (larger) */}
+      <div className="w-3/4 pl-4 flex flex-col">
+        <h3 className="text-3xl font-bold mb-6 invisible">{analysis.repo_name}</h3>
         {narrativeParagraphs.map((paragraph, index) => (
-          <p key={index} className="mb-2">{paragraph}</p>
+          <p key={index} className="mb-3">{paragraph}</p>
         ))}
       </div>
     </div>
