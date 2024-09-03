@@ -14,9 +14,9 @@ interface RepoAnalysisProps {
 
 const RepoAnalysis: React.FC<RepoAnalysisProps> = ({ analysis }) => {
   const getCodeQuality = (score: number) => {
-    if (score > 90) return 'Excellent';  // Changed thresholds to match 0-100 scale
-    if (score > 70) return 'Good';
-    if (score > 50) return 'Fair';
+    if (score > 75) return 'Excellent';  // Changed thresholds to match 0-100 scale
+    if (score > 50) return 'Good';
+    if (score > 25) return 'Fair';
     return 'Needs Improvement';
   };
 

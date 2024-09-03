@@ -83,8 +83,12 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
 
   return (
     <div className="heatmap-container p-4 bg-black">
+      {/* Title row */}
+      <div className="w-full mb-6">
+        <h2 className="text-4xl font-bold text-white">Heatmap</h2>
+      </div>
       <div className="flex justify-center">
-        <ChartJS type="bar" data={data} options={options} style={{ backgroundColor, width: '50%', height: '40%' }} />
+        <ChartJS type="bar" data={data} options={options} style={{ backgroundColor, width: '30%', height: '20%' }} />
       </div>
       <div className="mt-2 grid grid-cols-4 text-white" style={{ paddingLeft: '25%', paddingRight: '15%' }}>
         <div className="flex flex-col items-start">
