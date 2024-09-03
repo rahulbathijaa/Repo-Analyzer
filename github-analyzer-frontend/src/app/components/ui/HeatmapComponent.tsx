@@ -83,7 +83,6 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
 
   return (
     <div className="heatmap-container p-4 bg-black">
-      <h2 className="text-2xl font-bold mb-4 text-white">Contribution Heatmap</h2>
       <div className="flex justify-center">
         <ChartJS type="bar" data={data} options={options} style={{ backgroundColor }} />
       </div>

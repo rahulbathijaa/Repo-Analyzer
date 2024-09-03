@@ -46,7 +46,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-black text-white p-8 md:p-12 lg:p-16"> {/* Added padding classes */}
-      <div className="profile-container mt-6 pb-12"> {/* Added mb-12 for 48px bottom margin */}
+      <div className="profile-container mt-6 pb-24"> {/* Added mb-12 for 48px bottom margin */}
         {data?.user_profile ? (
           <UserProfile userProfile={data.user_profile} />
         ) : (
@@ -54,6 +54,7 @@ export default function Home() {
         )}
       </div>
       <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
+      <h2 className="text-xl font-bold ml-8 mb-4">Repository Analysis (first 3 repos)</h2>
       <div className="repo-analysis mt-12 pb-12"> {/* Added my-12 for 48px top and bottom margin */}
         {data?.repo_analysis ? (
           <RepoAnalysis analysis={data.repo_analysis} />
