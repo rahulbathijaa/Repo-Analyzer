@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import HeatmapComponent from './components/ui/HeatmapComponent';
-import UserProfile from './components/ui/UserProfile';  // Add this import
-import { ApiResponse } from './types';
-import RepoAnalysis from './components/ui/RepoAnalysis';  // Create this component
+import UserProfile from './components/ui/UserProfile';  
+import RepoAnalysis from './components/ui/RepoAnalysis'; 
+
+// Add this interface near the top of your file
+interface AnalysisData {
+  user_profile?: any;
+  repo_analysis?: any;
+  heatmap_data?: any;
+}
 
 export default function Home() {
-  const [data, setData] = useState<ApiResponse | null>(null);
+  const [data, setData] = useState<AnalysisData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,12 +25,12 @@ export default function Home() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const result: ApiResponse = await response.json();
+        const result = await response.json();
         console.log('Received data:', result);
         setData(result);
       } catch (error) {
         console.error('Failed to fetch data:', error);
-        setError(`Failed to fetch data: ${error.message}`);
+        setError(`Failed to fetch data: ${(error as Error).message}`);
       } finally {
         setIsLoading(false);
       }
@@ -45,25 +51,22 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-white p-8 md:p-12 lg:p-16"> {/* Added padding classes */}
-      <div className="profile-container mt-6 pb-24"> {/* Added mb-12 for 48px bottom margin */}
+    <main className="min-h-screen bg-black text-white p-8 md:p-12 lg:p-16">
+      <div className="profile-container mt-12 pb-12">
         {data?.user_profile ? (
           <UserProfile userProfile={data.user_profile} />
         ) : (
           <p>No user profile data available</p>
         )}
       </div>
-      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
-      <h2 className="text-xl font-bold ml-8 mb-4">Repository Analysis (first 3 repos)</h2>
-      <div className="repo-analysis mt-12 pb-12"> {/* Added my-12 for 48px top and bottom margin */}
+      <div className="repo-analysis mt-12 pb-12">
         {data?.repo_analysis ? (
           <RepoAnalysis analysis={data.repo_analysis} />
         ) : (
           <p>No repository analysis data available</p>
         )}
       </div>
-      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
-      <div className="contribution-heatmap mt-12"> {/* Added mt-12 for 48px top margin */}
+      <div className="contribution-heatmap mt-12">
         {data?.heatmap_data ? (
           <HeatmapComponent heatmapData={data.heatmap_data} />
         ) : (

@@ -23,26 +23,27 @@ const RepoAnalysis: React.FC<RepoAnalysisProps> = ({ analysis }) => {
   const narrativeParagraphs = analysis.narrative.split('\n\n');
 
   return (
-    <div className="flex bg-black text-white p-8 border border-dashed border-[#80EE64] rounded-lg mx-16">
-      {/* Left column (smaller) */}
-      <div className="w-1/4 pr-4 flex flex-col">
-        <h3 className="text-3xl font-bold mb-6">{analysis.repo_name}</h3>
-        <p className="mb-2">Stars: {analysis.stars}</p>
-        <p className="mb-2">Forks: {analysis.forks}</p>
-        <p className="mb-2">Open Issues: {analysis.open_issues}</p>
-        <p className="mb-2">Watchers: {analysis.watchers}</p>
-        <p className="mb-2">Code Quality: {getCodeQuality(analysis.overall_score)}</p> 
+    <div className="bg-black text-white rounded-lg pl-8 pr-24">
+      {/* Title row */}
+      <div className="w-full mb-6">
+        <h2 className="text-4xl font-bold">{analysis.repo_name} Score: {getCodeQuality(analysis.overall_score)}</h2>
       </div>
 
-      {/* Divider */}
-      <div className="w-px border-l border-dashed border-[#80EE64] mx-4 self-stretch"></div>
-
-      {/* Right column (larger) */}
-      <div className="w-3/4 pl-4 flex flex-col">
-        <h3 className="text-3xl font-bold mb-6 invisible">{analysis.repo_name}</h3>
-        {narrativeParagraphs.map((paragraph, index) => (
-          <p key={index} className="mb-3">{paragraph}</p>
-        ))}
+      {/* Content row */}
+      <div className="flex">
+        {/* Left column */}
+        <div className="w-1/4 pr-4 flex flex-col">
+          <p className="mb-3">Stars: {analysis.stars}</p>
+          <p className="mb-3">Forks: {analysis.forks}</p>
+          <p className="mb-3">Open Issues: {analysis.open_issues}</p>
+          <p className="mb-3">Watchers: {analysis.watchers}</p>
+        </div>
+        {/* Right column */}
+        <div className="w-3/4 pl-4 flex flex-col">
+          {narrativeParagraphs.map((paragraph, index) => (
+            <p key={index} className="mb-3">{paragraph}</p>
+          ))}
+        </div>
       </div>
     </div>
   );

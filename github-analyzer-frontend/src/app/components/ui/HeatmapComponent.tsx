@@ -84,24 +84,46 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
   return (
     <div className="heatmap-container p-4 bg-black">
       <div className="flex justify-center">
-        <ChartJS type="bar" data={data} options={options} style={{ backgroundColor }} />
+        <ChartJS type="bar" data={data} options={options} style={{ backgroundColor, width: '50%', height: '40%' }} />
       </div>
-      <div className="mt-4 flex justify-between text-white">
-        <div className="flex flex-col">
-          <span className="mb-2">
-            <span className="inline-block w-3 h-3 mr-1" style={{ backgroundColor: 'white' }} />
+      <div className="mt-2 grid grid-cols-4 text-white" style={{ paddingLeft: '25%', paddingRight: '15%' }}>
+        <div className="flex flex-col items-start">
+          <span className="mb-1">
+            <span className="inline-block w-2 h-2 mr-1" style={{ backgroundColor: 'white' }} />
             Commits
           </span>
-          <span className="mb-2">
-            <span className="inline-block w-3 h-3 mr-1" style={{ backgroundColor: 'black' }} />
+          <span className="mb-1">
+            <span className="inline-block w-2 h-2 mr-1" style={{ backgroundColor: 'black' }} />
             Pull Requests
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {['Python', 'JavaScript', 'TypeScript', 'Java', 'C++', 'Other'].map(lang => (
-            <span key={lang} className="ml-2">
+        <div className="flex flex-col items-start">
+          {['Python', 'JavaScript'].map(lang => (
+            <span key={lang} className="mb-1">
               <span 
-                className="inline-block w-3 h-3 mr-1"
+                className="inline-block w-2 h-2 mr-1"
+                style={{ backgroundColor: getLanguageColor(lang) }}
+              />
+              {lang}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-col items-start">
+          {['TypeScript', 'Java'].map(lang => (
+            <span key={lang} className="mb-1">
+              <span 
+                className="inline-block w-2 h-2 mr-1"
+                style={{ backgroundColor: getLanguageColor(lang) }}
+              />
+              {lang}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-col items-start">
+          {['C++', 'Other'].map(lang => (
+            <span key={lang} className="mb-1">
+              <span 
+                className="inline-block w-2 h-2 mr-1"
                 style={{ backgroundColor: getLanguageColor(lang) }}
               />
               {lang}

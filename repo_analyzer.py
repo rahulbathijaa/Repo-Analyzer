@@ -71,43 +71,49 @@ def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
 
         Provide insights on popularity, community engagement, issue management, and a list of key observations.
         """
+        logger.info(f"Surface prompt: {surface_prompt}")
         surface_insights = surface_generator(surface_prompt)
-        logger.info(f"Surface insights: {surface_insights}")
+        surface_insights_dict = surface_insights.dict()
+        logger.info(f"Surface insights: {surface_insights_dict}")
 
         # Intermediate Insights
         intermediate_generator = generate.json(llm, IntermediateInsights)
         intermediate_prompt = f"""
         Based on the surface insights and repo data, provide intermediate insights:
-        Surface Insights: {surface_insights}
+        Surface Insights: {json.dumps(surface_insights_dict, indent=2)}
         Repo Data: {json.dumps(repo_data, indent=2)}
 
         Calculate forks_to_stars_ratio and issues_resolution_rate.
         Analyze community interest and provide a list of derived insights based on the surface observations.
         """
+        logger.info(f"Intermediate prompt: {intermediate_prompt}")
         intermediate_insights = intermediate_generator(intermediate_prompt)
-        logger.info(f"Intermediate insights: {intermediate_insights}")
+        intermediate_insights_dict = intermediate_insights.dict()
+        logger.info(f"Intermediate insights: {intermediate_insights_dict}")
 
         # Deep Insights
         deep_generator = generate.json(llm, DeepInsights)
         deep_prompt = f"""
         Based on all previous insights and repo data, provide deep insights:
-        Surface Insights: {surface_insights}
-        Intermediate Insights: {intermediate_insights}
+        Surface Insights: {json.dumps(surface_insights_dict, indent=2)}
+        Intermediate Insights: {json.dumps(intermediate_insights_dict, indent=2)}
         Repo Data: {json.dumps(repo_data, indent=2)}
 
         Evaluate project health, community vitality, and documentation quality.
         Provide an overall score (0-100) and a list of key findings that synthesize all previous insights.
         """
+        logger.info(f"Deep prompt: {deep_prompt}")
         deep_insights = deep_generator(deep_prompt)
-        logger.info(f"Deep insights: {deep_insights}")
+        deep_insights_dict = deep_insights.dict()
+        logger.info(f"Deep insights: {deep_insights_dict}")
 
         # Narrative Summary
         narrative_generator = generate.json(llm, NarrativeSummary)
         narrative_prompt = f"""
         Create a concise summary for the repository {repo_data['repo_name']} based on the following insights:
-        Surface Insights: {surface_insights}
-        Intermediate Insights: {intermediate_insights}
-        Deep Insights: {deep_insights}
+        Surface Insights: {json.dumps(surface_insights_dict, indent=2)}
+        Intermediate Insights: {json.dumps(intermediate_insights_dict, indent=2)}
+        Deep Insights: {json.dumps(deep_insights_dict, indent=2)}
 
         Provide a summary with exactly four well-written, informative sentences:
         1. One sentence on the repository's overall health and popularity.
@@ -117,6 +123,7 @@ def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
 
         Ensure each sentence is detailed, nuanced, and captures the essence of the insights provided.
         """
+        logger.info(f"Narrative prompt: {narrative_prompt}")
         narrative_summary = narrative_generator(narrative_prompt)
         logger.info(f"Narrative summary: {narrative_summary}")
 
@@ -126,7 +133,7 @@ def analyze_repo(username: str, github_token: str, model, tokenizer) -> dict:
             "forks": repo_data['forks'],
             "open_issues": repo_data['open_issues'],
             "watchers": repo_data['watchers'],
-            "overall_score": deep_insights.overall_score,
+            "overall_score": deep_insights_dict['overall_score'],
             "narrative": narrative_summary.summary
         }
     except Exception as e:
