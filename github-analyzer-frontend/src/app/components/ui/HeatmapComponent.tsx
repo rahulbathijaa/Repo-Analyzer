@@ -6,13 +6,10 @@ Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement
 
 interface HeatmapData {
   [date: string]: {
+    date: string;
     total_commits: number;
-    languages: { [language: string]: number };
-    contribution_types: { [type: string]: number };
-    insights: {
-      most_used_language: string;
-      significant_prs: boolean;
-    };
+    total_prs: number;
+    dominant_language: string;
   };
 }
 
@@ -22,12 +19,16 @@ interface HeatmapComponentProps {
 
 const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
   const dates = Object.keys(heatmapData).sort();
+  if (dates.length === 0) {
+    return <div>No data available</div>;
+  }
+
   const commitsData = dates.map(date => heatmapData[date].total_commits);
-  const prData = dates.map(date => heatmapData[date].contribution_types['pull_request'] || 0);
+  const prData = dates.map(date => heatmapData[date].total_prs);
 
   // Ensure insights exist before accessing them
   const firstDate = dates[0];
-  const dominantLanguage = heatmapData[firstDate]?.insights?.most_used_language || 'Other';  // Default to 'Other' if insights are missing
+  const dominantLanguage = heatmapData[firstDate]?.dominant_language || 'Other';  // Default to 'Other' if insights are missing
   const backgroundColor = getLanguageColor(dominantLanguage);  // Get the color for the dominant language
 
   const data = {
@@ -62,12 +63,20 @@ const HeatmapComponent: React.FC<HeatmapComponentProps> = ({ heatmapData }) => {
       y: {
         beginAtZero: true,
         position: 'left' as const,
+        title: {
+          display: true,
+          text: 'Commits',
+        },
       },
       y1: {
         beginAtZero: true,
         position: 'right' as const,
         grid: {
           drawOnChartArea: false,
+        },
+        title: {
+          display: true,
+          text: 'Pull Requests',
         },
       },
     },

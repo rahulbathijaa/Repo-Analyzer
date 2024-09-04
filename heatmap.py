@@ -2,7 +2,7 @@ import json
 import requests
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field, ValidationError
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 import re
 
@@ -60,6 +60,21 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
                 }
               }
             }
+            pullRequests(first: 100, states: MERGED) {
+              edges {
+                node {
+                  createdAt
+                  title
+                  additions
+                  deletions
+                }
+              }
+            }
+            object(expression: "HEAD:README.md") {
+              ... on Blob {
+                text
+              }
+            }
           }
         }
       }
@@ -75,7 +90,9 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
     repo_info = {
         "name": repo["name"],
         "primary_language": repo["primaryLanguage"]["name"] if repo["primaryLanguage"] else "Unknown",
-        "commits": []
+        "commits": [],
+        "pull_requests": [],
+        "readme_content": repo["object"]["text"] if repo["object"] else ""
     }
     
     for commit in repo["defaultBranchRef"]["target"]["history"]["edges"]:
@@ -87,6 +104,17 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
             "deletions": commit_node["deletions"],
             "language": repo["primaryLanguage"]["name"] if repo["primaryLanguage"] else "Unknown",
             "contribution_type": "commit"
+        })
+    
+    for pr in repo["pullRequests"]["edges"]:
+        pr_node = pr["node"]
+        repo_info["pull_requests"].append({
+            "date": pr_node["createdAt"].split('T')[0],  # Ensure date is a string without time component
+            "title": pr_node["title"],
+            "additions": pr_node["additions"],
+            "deletions": pr_node["deletions"],
+            "language": repo["primaryLanguage"]["name"] if repo["primaryLanguage"] else "Unknown",
+            "contribution_type": "pull_request"
         })
     
     return {
@@ -119,8 +147,12 @@ def process_contributions(contributions: List[Dict[str, Any]]) -> Dict[str, Any]
         language = contribution["language"]
         contribution_type = contribution["contribution_type"]
 
-        # Increment the total number of commits on that date
-        structured_data[date]["total_commits"] += 1
+        # Increment the total number of commits or pull requests on that date
+        if contribution_type == "commit":
+            structured_data[date]["total_commits"] += 1
+        elif contribution_type == "pull_request":
+            structured_data[date]["contribution_types"]["pull_request"] += 1
+        
         structured_data[date]["languages"][language] += 1
         structured_data[date]["contribution_types"][contribution_type] += 1
 
@@ -167,29 +199,39 @@ def generate_visual_attributes(contributions: List[Dict[str, Any]]) -> Dict[str,
 def generate_heatmap_json(structured_data: Dict[str, Any], insights: Dict[str, Any]) -> Dict[str, Any]:
     heatmap_json = {}
 
-    # Define a regex pattern for date validation
-    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    # Calculate the time span
+    dates = sorted(structured_data.keys())
+    start_date = datetime.strptime(dates[0], "%Y-%m-%d")
+    end_date = datetime.strptime(dates[-1], "%Y-%m-%d")
+    total_days = (end_date - start_date).days
+    period_length = total_days // 10
+
+    # Initialize periods
+    periods = [start_date + timedelta(days=i * period_length) for i in range(11)]
+
+    # Aggregate commits in each period
+    period_commits = [0] * 10
+    for date, data in structured_data.items():
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+        for i in range(10):
+            if periods[i] <= date_obj < periods[i + 1]:
+                period_commits[i] += data["total_commits"]
+                break
 
     for date, data in structured_data.items():
-        # Validate date format using the regex pattern
-        if not date_pattern.match(date):
-            print(f"Invalid date format for {date}, skipping entry.")
-            continue
-
-        languages = data["languages"]
-        contribution_types = data["contribution_types"]
         insight = insights.get(date, {})
 
-        # Generate JSON structure with chain of thought insights
+        # Generate JSON structure
         heatmap_entry = {
-            "date": date,  # Ensure this key is "date" (lowercase)
+            "date": date,
             "total_commits": data["total_commits"],
-            "languages": languages,
-            "contribution_types": contribution_types,
-            "insights": insight,
-            "dominant_language": insight.get("most_used_language", "Other")  # Add dominant language
+            "total_prs": data["contribution_types"].get("pull_request", 0),  # Ensure 'total_prs' key exists
+            "dominant_language": insight.get("most_used_language", "Unknown")
         }
 
         heatmap_json[date] = heatmap_entry
+
+    # Add period commits to the JSON
+    heatmap_json["period_commits"] = period_commits
 
     return heatmap_json
