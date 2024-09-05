@@ -119,7 +119,8 @@ def fetch_contributions_data(username: str, github_token: str) -> Dict[str, Any]
     
     return {
         "user_profile": user_profile,
-        "repo_analysis": [repo_info]
+        "repo_analysis": [repo_info],
+        "readme_content": repo_info["readme_content"]  # Add README content to the return value
     }
 
 def calculate_years_on_github(created_at: str) -> int:

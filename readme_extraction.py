@@ -1,8 +1,9 @@
-import json
 import logging
-from typing import List, Optional
-import outlines
 from pydantic import BaseModel
+from typing import List, Optional
+from transformers import PreTrainedModel, PreTrainedTokenizer
+import outlines
+from heatmap import fetch_contributions_data  # Import the function
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -10,19 +11,19 @@ logger = logging.getLogger(__name__)
 
 # Define the structure for the README data
 class ReadmeData(BaseModel):
-    project_description: str
-    key_features: List[str]
-    installation_instructions: List[str]
-    usage_examples: List[str]
-    license: str
-    contributing_guidelines: str
-    project_status: str
-    roadmap: Optional[List[str]]
-    acknowledgments: Optional[List[str]]
+    project_description: Optional[str] = ""
+    key_features: Optional[List[str]] = []
+    installation_instructions: Optional[List[str]] = []
+    usage_examples: Optional[List[str]] = []
+    license: Optional[str] = ""
+    contributing_guidelines: Optional[str] = ""
+    project_status: Optional[str] = ""
+    roadmap: Optional[List[str]] = []
+    acknowledgments: Optional[List[str]] = []
 
 # Define a template for extracting information from the README
 @outlines.prompt
-def extract_readme_info(readme_content):
+def extract_readme_info(readme_content: str) -> str:
     """
     Extract the following information from the README:
     - Project description
@@ -40,79 +41,30 @@ def extract_readme_info(readme_content):
 
     Output the extracted information in JSON format.
     """
+    return f"README content:\n{readme_content}"
 
 # Function to extract data from README
-def extract_readme_data(model, tokenizer, readme_content: str) -> ReadmeData:
+def readme_extraction(model: PreTrainedModel, tokenizer: PreTrainedTokenizer, username: str, github_token: str) -> ReadmeData:
+    # Fetch contributions data to get the readme_content
+    github_data = fetch_contributions_data(username, github_token)
+    readme_content = github_data.get("readme_content", "")
+
+    if not isinstance(readme_content, str):
+        logger.error("Expected readme_content to be a string, but got a %s", type(readme_content).__name__)
+        return ReadmeData()
+
+    # If readme_content is empty, return an empty ReadmeData object
+    if not readme_content:
+        return ReadmeData()
+
     logger.debug(f"Extracting README data for content: {readme_content}")
     prompt = extract_readme_info(readme_content)
-    logger.debug(f"Generated prompt: {prompt}")
     
+    # Generate structured JSON output using Outlines with type-annotated arguments
     generator = outlines.generate.json(model, tokenizer, ReadmeData)
     result = generator([prompt])
+    
     logger.debug(f"Extracted README data: {result}")
     
-    # Validate and create the ReadmeData object
+    # Validate and return the ReadmeData object
     return ReadmeData(**result[0])
-
-# Function to generate UI components based on the extracted data
-def generate_ui_components(data: ReadmeData) -> dict:
-    logger.debug(f"Generating UI components for data: {data}")
-    ui_components = {
-        "header": {
-            "type": "header",
-            "content": data.project_description
-        },
-        "features": {
-            "type": "list",
-            "items": data.key_features
-        },
-        "installation": {
-            "type": "ordered_list",
-            "items": data.installation_instructions
-        },
-        "usage": {
-            "type": "code_block",
-            "content": "\n".join(data.usage_examples)
-        },
-        "license": {
-            "type": "text",
-            "content": data.license
-        },
-        "contributing": {
-            "type": "text",
-            "content": data.contributing_guidelines
-        },
-        "status": {
-            "type": "badge",
-            "content": data.project_status
-        }
-    }
-
-    if data.roadmap:
-        ui_components["roadmap"] = {
-            "type": "list",
-            "items": data.roadmap
-        }
-
-    if data.acknowledgments:
-        ui_components["acknowledgments"] = {
-            "type": "list",
-            "items": data.acknowledgments
-        }
-
-    logger.debug(f"Generated UI components: {ui_components}")
-    return ui_components
-
-# Main function to process README and generate output
-def process_readme(model, tokenizer, readme_content: str) -> dict:
-    logger.debug(f"Processing README content: {readme_content}")
-    readme_data = extract_readme_data(model, tokenizer, readme_content)
-    ui_components = generate_ui_components(readme_data)
-
-    output = {
-        "extracted_data": readme_data.dict(),
-        "ui_components": ui_components
-    }
-
-    logger.debug(f"Processed README output: {output}")
-    return output
